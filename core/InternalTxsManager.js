@@ -20,7 +20,7 @@ class InternalTxsManager {
         // logger.info("intervalTask start")
         const infos = await EntryPointManager.getAllScanInfo();
         if (!infos) {
-            logger.info("load ScanInfo is null")
+            logger.info("load ScanInfo is null");
             return;
         }
 
@@ -31,14 +31,14 @@ class InternalTxsManager {
             const hash = await this.getNotInternalTx(chainId);
 
             if (!hash) {
-                logger.info("intervalTask not hash")
+                // logger.info("intervalTask not hash");
                 continue;
             }
             const internalTxs = await this.fetchScanInternalTx(url, hash, key);
             if (!internalTxs) {
                 continue;
             }
-            logger.info("intervalTask hash:", hash, internalTxs?.length)
+            logger.info("intervalTask hash:", hash, chainId, internalTxs?.length)
             await this.updateInternalTx(chainId, hash, internalTxs);
         }
     }

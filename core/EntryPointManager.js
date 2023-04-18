@@ -265,7 +265,7 @@ class EntryPointManager {
                     factory
                 });
             } catch (e) {
-                logger.info("processUserOperationInfo e", utils.inspect(e), tx?.input);
+                logger.info("processUserOperationInfo e", utils.inspect(e), chain_id, transactionHash, tx?.input);
             }
         });
 
