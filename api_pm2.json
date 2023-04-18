@@ -1,0 +1,29 @@
+{
+  "apps": [
+    {
+      "name": "aascan-engine",
+      "script": "yarn startEngine",
+      "env_prod": {
+        "NODE_ENV": "prod"
+      },
+      "env_test": {
+        "NODE_ENV": "test"
+      },
+      "merge_logs": false,
+      "log_date_format": "YYYY-MM-DD HH:mm Z"
+    },
+    {
+      "name": "aascan_query",
+      "script": "yarn startQuery",
+      "env_prod": {
+        "NODE_ENV": "prod"
+      },
+      "env_test": {
+        "NODE_ENV": "test"
+      },
+      "merge_logs": false,
+      "log_date_format": "YYYY-MM-DD HH:mm Z"
+    }
+  ]
+}
+

@@ -38,3 +38,5 @@ next-env.d.ts
 .idea
 
 yarn.lock
+
+logs-api
