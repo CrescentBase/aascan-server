@@ -326,45 +326,46 @@ class EntryPointManager {
         return allEntry.map(entry => entry.address);
     }
 
-    async getAddressActivity(chainId, address, first, skip) {
+    async getAddressActivity(network, chainId, address, first, skip) {
         const detail = {
             type: "Unknown",
             address,
             userOps: [],
+            network,
             total: 0
         };
         if (!address || !ethers.utils.isAddress(address)) {
             return detail;
         }
-        let result = await this.getEntryPointActivity(chainId, address, first, skip);
+        let result = await this.getEntryPointActivity(network, chainId, address, first, skip);
         if (result?.userOps?.length > 0) {
             detail.type = "EntryPoint";
             detail.userOps = result.userOps;
             detail.total = result.total;
             return detail;
         }
-        result = await this.getPaymasterActivity(chainId, address, first, skip);
+        result = await this.getPaymasterActivity(network, chainId, address, first, skip);
         if (result?.userOps?.length > 0) {
             detail.type = "Paymaster";
             detail.userOps = result.userOps;
             detail.total = result.total;
             return detail;
         }
-        result = await this.getBundlerActivity(chainId, address, first, skip);
+        result = await this.getBundlerActivity(network, chainId, address, first, skip);
         if (result?.userOps?.length > 0) {
             detail.type = "Bundler";
             detail.userOps = result.userOps;
             detail.total = result.total;
             return detail;
         }
-        result = await this.getBeneficiaryActivity(chainId, address, first, skip);
+        result = await this.getBeneficiaryActivity(network, chainId, address, first, skip);
         if (result?.userOps?.length > 0) {
             detail.type = "Beneficiary";
             detail.userOps = result.userOps;
             detail.total = result.total;
             return detail;
         }
-        result = await this.getSenderActivity(chainId, address, first, skip);
+        result = await this.getSenderActivity(network, chainId, address, first, skip);
         if (result?.userOps?.length > 0) {
             detail.type = "Sender";
             detail.userOps = result.userOps;
@@ -408,11 +409,11 @@ class EntryPointManager {
                      WHERE LOGS.chain_id=? AND LOGS.blockNumber=?
                      ORDER BY LOGS.timeStamp+0 DESC`;
         let result = await ConnectionManager.getInstance().querySql(sql, [chainId, blockNumber]);
-        result = result?.map(uo => {return { ...uo, success: uo.success !== "0" };});
+        result = result?.map(uo => {return { ...uo, success: uo.success !== "0", network };});
         return result || [];
     }
 
-    async getBeneficiaryActivity(chainId, address, first, skip) {
+    async getBeneficiaryActivity(network, chainId, address, first, skip) {
         const sqlTotal = `SELECT count(*) as total FROM USER_OPERATION_INFO WHERE chain_id=? AND beneficiary=?`;
         const totalResult = await ConnectionManager.getInstance().querySql(sqlTotal, [chainId, address]);
         const total = totalResult?.[0]?.total || 0;
@@ -456,11 +457,11 @@ class EntryPointManager {
                      LIMIT ? OFFSET ?
         `;
         let result = await ConnectionManager.getInstance().querySql(sql, [chainId, address, first, skip]);
-        result = result?.map(uo => {return { ...uo, success: uo.success !== "0" };});
+        result = result?.map(uo => {return { ...uo, success: uo.success !== "0", network };});
         return { total, userOps: result || [] };
     }
 
-    async getEntryPointActivity(chainId, address, first, skip) {
+    async getEntryPointActivity(network, chainId, address, first, skip) {
         const sqlTotal = `SELECT count(*) as total FROM ENTRY_POINT_LOGS WHERE chain_id=? AND address=?`;
         const totalResult = await ConnectionManager.getInstance().querySql(sqlTotal, [chainId, address]);
         const total = totalResult?.[0]?.total || 0;
@@ -502,11 +503,11 @@ class EntryPointManager {
                      LIMIT ? OFFSET ?
                `;
         let result = await ConnectionManager.getInstance().querySql(sql, [chainId, address, first, skip]);
-        result = result?.map(uo => {return { ...uo, success: uo.success !== "0" };});
+        result = result?.map(uo => {return { ...uo, success: uo.success !== "0", network };});
         return { total, userOps: result || [] };
     }
 
-    async getBundlerActivity(chainId, address, first, skip) {
+    async getBundlerActivity(network, chainId, address, first, skip) {
         const sqlTotal = `
             SELECT count(LOGS.sender) as total
                      FROM ENTRY_POINT_TXS AS TXS 
@@ -556,12 +557,12 @@ class EntryPointManager {
                      LIMIT ? OFFSET ?
         `;
         let result = await ConnectionManager.getInstance().querySql(sql, [chainId, address, first, skip]);
-        result = result?.map(uo => {return { ...uo, success: uo.success !== "0" };});
+        result = result?.map(uo => {return { ...uo, success: uo.success !== "0", network };});
         return { total, userOps: result || [] };
     }
 
 
-    async getPaymasterActivity(chainId, address, first, skip) {
+    async getPaymasterActivity(network, chainId, address, first, skip) {
         const sqlTotal = `SELECT count(*) as total FROM ENTRY_POINT_LOGS WHERE chain_id=? AND paymaster=?`;
         const totalResult = await ConnectionManager.getInstance().querySql(sqlTotal, [chainId, address]);
         const total = totalResult?.[0]?.total || 0;
@@ -603,11 +604,11 @@ class EntryPointManager {
                      LIMIT ? OFFSET ?
                `;
         let result = await ConnectionManager.getInstance().querySql(sql, [chainId, address, first, skip]);
-        result = result?.map(uo => {return { ...uo, success: uo.success !== "0" };});
+        result = result?.map(uo => {return { ...uo, success: uo.success !== "0", network };});
         return { total, userOps: result || [] };
     }
 
-    async getSenderActivity(chainId, address, first, skip) {
+    async getSenderActivity(network, chainId, address, first, skip) {
         const sqlTotal = `SELECT count(*) as total FROM ENTRY_POINT_LOGS WHERE chain_id=? AND sender=?`;
         const totalResult = await ConnectionManager.getInstance().querySql(sqlTotal, [chainId, address]);
         const total = totalResult?.[0]?.total || 0;
@@ -649,11 +650,11 @@ class EntryPointManager {
                      LIMIT ? OFFSET ?
                `;
         let result = await ConnectionManager.getInstance().querySql(sql, [chainId, address, first, skip]);
-        result = result?.map(uo => {return { ...uo, success: uo.success !== "0" };});
+        result = result?.map(uo => {return { ...uo, success: uo.success !== "0", network };});
         return { total, userOps: result || [] };
     }
 
-    async getUserOpsByHash(chainId, allUserOpHash) {
+    async getUserOpsByHash(network, chainId, allUserOpHash) {
         let strHash;
         allUserOpHash.forEach(hash => {
             if (!strHash) {
@@ -689,11 +690,14 @@ class EntryPointManager {
                         UA.signature AS signature,
                         UA.beneficiary AS beneficiary,
                         UA.factory AS factory,
+                        EPTXS.tx_from AS bundler,
+                        EPTXS.tx_to AS ep,
                         TXS.internalTxs AS internalTxs 
                      FROM ENTRY_POINT_LOGS AS LOGS 
                      LEFT JOIN REVERT_REASON_LOGS AS REASON ON REASON.chain_id = LOGS.chain_id AND REASON.userOpHash = LOGS.userOpHash 
                      LEFT JOIN USER_OPERATION_INFO AS UA ON UA.chain_id = LOGS.chain_id AND UA.transactionHash = LOGS.transactionHash AND UA.sender = LOGS.sender AND UA.nonce = LOGS.nonce  
                      LEFT JOIN ENTRY_POINT_INTERNAL_TXS AS TXS ON TXS.chain_id = LOGS.chain_id AND TXS.transactionHash = LOGS.transactionHash  
+                     LEFT JOIN ENTRY_POINT_TXS AS EPTXS ON EPTXS.chain_id = LOGS.chain_id AND EPTXS.hash = LOGS.transactionHash  
                      WHERE LOGS.chain_id=? AND LOGS.userOpHash IN (${strHash})
                `;
         let result = await ConnectionManager.getInstance().querySql(sql, [chainId]);
@@ -704,13 +708,14 @@ class EntryPointManager {
             internalTxs = internalTxs?.filter(tx => sender === tx.from?.toLowerCase() || sender === tx.to?.toLowerCase());
             return {
                 ...item,
-                internalTxs: internalTxs || []
+                internalTxs: internalTxs || [],
+                network
             }
         });
         return result || [];
     }
 
-    async getLatestUserOps(chainId, first, skip) {
+    async getLatestUserOps(network, chainId, first, skip) {
         const sql = `SELECT 
                         LOGS.paymaster as paymaster,
                         LOGS.address as entryPoint,
@@ -745,7 +750,7 @@ class EntryPointManager {
                      ORDER BY LOGS.timeStamp+0 DESC 
                      LIMIT ? OFFSET ?`;
         let result = await ConnectionManager.getInstance().querySql(sql, [chainId, first, skip]);
-        result = result?.map(uo => {return { ...uo, success: uo.success !== "0" };});
+        result = result?.map(uo => {return { ...uo, success: uo.success !== "0", network };});
         return result || [];
     }
 
@@ -758,7 +763,7 @@ class EntryPointManager {
         return `${result?.[0]?.bundlesTotal || 0}`;
     }
 
-    async getLatestBundles(chainId, first, skip) {
+    async getLatestBundles(network, chainId, first, skip) {
         const sql = `SELECT hash AS transactionHash, blockNumber, timeStamp AS blockTime 
                      FROM ENTRY_POINT_TXS
                      WHERE chain_id=? AND (methodId = ? OR methodId = ?) 
@@ -788,7 +793,8 @@ class EntryPointManager {
             return {
                 userOpsLength: curOps.length,
                 ...item,
-                userOps: curOps.map(op => { return { userOpHash: op.userOpHash } })
+                userOps: curOps.map(op => { return { userOpHash: op.userOpHash } }),
+                network
             }
         });
     }
