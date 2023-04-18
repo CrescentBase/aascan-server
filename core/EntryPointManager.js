@@ -692,6 +692,7 @@ class EntryPointManager {
                         UA.factory AS factory,
                         EPTXS.tx_from AS bundler,
                         EPTXS.tx_to AS ep,
+                        EPTXS.input AS input,
                         TXS.internalTxs AS internalTxs 
                      FROM ENTRY_POINT_LOGS AS LOGS 
                      LEFT JOIN REVERT_REASON_LOGS AS REASON ON REASON.chain_id = LOGS.chain_id AND REASON.userOpHash = LOGS.userOpHash 
@@ -704,10 +705,25 @@ class EntryPointManager {
         result = result?.map(uo => {return { ...uo, success: uo.success !== "0" };});
         result = result?.map(item => {
             let internalTxs = JSON.parse(item.internalTxs);
-            const sender = item.sender?.toLowerCase();
+            const sender = item.sender.toLowerCase();
+            const nonce = item.nonce;
+            const input = item.input;
+            const signature = item.signature;
             internalTxs = internalTxs?.filter(tx => sender === tx.from?.toLowerCase() || sender === tx.to?.toLowerCase());
+
+            let original;
+            try {
+                const endCode = signature.substring(2);
+                const startCode = this.abiCoder.encode(['address','uint256'], [sender, nonce]).substring(2);
+                original = "0x" + input.substring(input.indexOf(startCode), input.indexOf(endCode) + endCode.length);
+            } catch (e) {
+                original = '0x';
+            }
+            delete item.input;
+
             return {
                 ...item,
+                original,
                 internalTxs: internalTxs || [],
                 network
             }
