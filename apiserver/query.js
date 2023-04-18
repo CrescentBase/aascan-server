@@ -12,17 +12,17 @@ requestMethod("/getUserOpsTotal", async (req, res) => {
         const userOpsTotal = await EntryPointManager.getUserOpsTotal(chainId);
         normalResultHandler({ userOpsTotal }, res, req, false);
     } catch(err) {
-        normalResultHandler({ userOpsTotal: "0" }, res, req, false);
+        normalResultHandler({ userOpsTotal: 0 }, res, req, false);
     }
 });
 
 requestMethod("/getLatestUserOps", async (req, res) => {
     try {
         const { chainId, first, skip, network } = formatParam(req);
-        const userOps = await EntryPointManager.getLatestUserOps(network, chainId, first, skip);
-        normalResultHandler({ userOps }, res, req, false);
+        const result = await EntryPointManager.getLatestUserOps(network, chainId, first, skip);
+        normalResultHandler({ ...result }, res, req, false);
     } catch(err) {
-        normalResultHandler({ userOps: [] }, res, req, false);
+        normalResultHandler({ total: 0, userOps: [] }, res, req, false);
     }
 });
 
@@ -30,10 +30,10 @@ requestMethod("/getLatestUserOps", async (req, res) => {
 requestMethod("/getLatestBundles", async (req, res) => {
     try {
         const { chainId, first, skip, network } = formatParam(req);
-        const bundles = await EntryPointManager.getLatestBundles(network, chainId, first, skip);
-        normalResultHandler({ bundles }, res, req, false);
+        const result = await EntryPointManager.getLatestBundles(network, chainId, first, skip);
+        normalResultHandler({ ...result }, res, req, false);
     } catch(err) {
-        normalResultHandler({ bundles: [] }, res, req, false);
+        normalResultHandler({ total: 0, bundles: [] }, res, req, false);
     }
 });
 
@@ -43,7 +43,7 @@ requestMethod("/getBundlesTotal", async (req, res) => {
         const bundlesTotal = await EntryPointManager.getBundlesTotal(chainId);
         normalResultHandler({ bundlesTotal }, res, req, false);
     } catch(err) {
-        normalResultHandler({ bundlesTotal: "0" }, res, req, false);
+        normalResultHandler({ bundlesTotal: 0 }, res, req, false);
     }
 });
 

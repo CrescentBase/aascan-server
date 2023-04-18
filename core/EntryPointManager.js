@@ -315,7 +315,7 @@ class EntryPointManager {
     async getUserOpsTotal(chainId) {
         const sql = `SELECT COUNT(*) AS userOpsTotal FROM ENTRY_POINT_LOGS WHERE chain_id=?`;
         const result = await ConnectionManager.getInstance().querySql(sql, [chainId]);
-        return `${result?.[0]?.userOpsTotal || 0}`;
+        return result?.[0]?.userOpsTotal || 0;
     }
 
     async allEntryPoint() {
@@ -732,6 +732,10 @@ class EntryPointManager {
     }
 
     async getLatestUserOps(network, chainId, first, skip) {
+        const total = await this.getUserOpsTotal(chainId);
+        if (total <= 0) {
+            return { total, userOps: [] };
+        }
         const sql = `SELECT 
                         LOGS.paymaster as paymaster,
                         LOGS.address as entryPoint,
@@ -767,7 +771,7 @@ class EntryPointManager {
                      LIMIT ? OFFSET ?`;
         let result = await ConnectionManager.getInstance().querySql(sql, [chainId, first, skip]);
         result = result?.map(uo => {return { ...uo, success: uo.success !== "0", network };});
-        return result || [];
+        return { total, userOps: result || [] };
     }
 
 
@@ -776,17 +780,21 @@ class EntryPointManager {
                      FROM ENTRY_POINT_TXS
                      WHERE chain_id=? AND (methodId = ? OR methodId = ?)`;
         const result = await ConnectionManager.getInstance().querySql(sql, [chainId, this.METHOD_ID_HANDLE_OPS, this.METHOD_ID_HANDLE_AGGREGATED_OPS]);
-        return `${result?.[0]?.bundlesTotal || 0}`;
+        return result?.[0]?.bundlesTotal || 0;
     }
 
     async getLatestBundles(network, chainId, first, skip) {
+        const total = await this.getBundlesTotal(chainId);
+        if (total <= 0) {
+            return { total, bundles: [] };
+        }
         const sql = `SELECT hash AS transactionHash, blockNumber, timeStamp AS blockTime 
                      FROM ENTRY_POINT_TXS
                      WHERE chain_id=? AND (methodId = ? OR methodId = ?) 
                      ORDER BY timeStamp+0 DESC 
                      LIMIT ? OFFSET ?`;
 
-        const result = await ConnectionManager.getInstance().querySql(sql, [chainId, this.METHOD_ID_HANDLE_OPS, this.METHOD_ID_HANDLE_AGGREGATED_OPS, first, skip]);
+        let result = await ConnectionManager.getInstance().querySql(sql, [chainId, this.METHOD_ID_HANDLE_OPS, this.METHOD_ID_HANDLE_AGGREGATED_OPS, first, skip]);
         if (!result?.length) {
             return [];
         }
@@ -804,7 +812,7 @@ class EntryPointManager {
         if (!ops?.length) {
             return [];
         }
-        return result.map(item => {
+        result = result.map(item => {
             const curOps = ops.filter(op => op.transactionHash === item.transactionHash);
             return {
                 userOpsLength: curOps.length,
@@ -813,6 +821,7 @@ class EntryPointManager {
                 network
             }
         });
+        return { total, bundles: result || [] };
     }
 
     async insertRevertReasonLogs(logs) {
