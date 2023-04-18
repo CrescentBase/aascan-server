@@ -174,5 +174,14 @@ requestMethod("/getAddressActivity", async (req, res) => {
     }
 });
 
+requestMethod("/allEntryPoint", async (req, res) => {
+    try {
+        const entryPoint = await EntryPointManager.allEntryPoint();
+        normalResultHandler({ entryPoint }, res, req, false);
+    } catch(err) {
+        normalResultHandler({ entryPoint: [] }, res, req, false);
+    }
+});
+
 
 export default router;

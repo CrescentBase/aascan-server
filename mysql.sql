@@ -113,7 +113,6 @@ create table ENTRY_POINT_TXS (
     confirmations char(255) comment 'tx confirmations',
     methodId char(255) comment 'tx methodId',
     functionName char(255) comment 'tx functionName',
-    internalTxs text comment 'internalTxs',
     created_at timestamp NULL DEFAULT NULL,
     updated_at timestamp NULL DEFAULT NULL,
     unique key locker_event_unique(chain_id,address,hash)
@@ -143,4 +142,18 @@ create table USER_OPERATION_INFO (
     created_at timestamp NULL DEFAULT NULL,
     updated_at timestamp NULL DEFAULT NULL,
     unique key locker_event_unique(chain_id,address,transactionHash,sender,nonce)
+) engine=innodb default charset=utf8;
+
+
+drop table if exists ENTRY_POINT_INTERNAL_TXS;
+
+create table ENTRY_POINT_INTERNAL_TXS (
+    id bigint(32) unsigned auto_increment primary key,
+    chain_id int not null comment 'chain id',
+    address char(255) not null comment 'log address',
+    transactionHash char(255) not null comment 'log transactionHash',
+    internalTxs text comment 'internalTxs',
+    created_at timestamp NULL DEFAULT NULL,
+    updated_at timestamp NULL DEFAULT NULL,
+    unique key locker_event_unique(chain_id,address,transactionHash)
 ) engine=innodb default charset=utf8;

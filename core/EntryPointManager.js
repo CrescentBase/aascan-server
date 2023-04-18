@@ -8,7 +8,7 @@ import {getChainId} from "../utils/NetworkUtils.js";
 const logger = getLogger("EntryPointManager");
 
 class EntryPointManager {
-    intervalTime = 5 * 1000;
+    intervalTime = 8 * 1000;
 
     dataParams = ["uint256", "bool", "uint256", "uint256"];
     dataParamsAccountDeployed = ["address", "address"];
@@ -29,15 +29,15 @@ class EntryPointManager {
     }
 
     async intervalTask() {
-        logger.info("intervalTask start")
+        // logger.info("intervalTask start")
         const allEntry = await this.getAllEntryPoint();
         if (!allEntry?.length) {
-            logger.info("load EntryPoint is null")
+            logger.info("load EntryPoint is null");
             return;
         }
         const infos = await this.getAllScanInfo();
         if (!infos) {
-            logger.info("load ScanInfo is null")
+            logger.info("load ScanInfo is null");
             return;
         }
         for (const entry of allEntry) {
@@ -316,6 +316,14 @@ class EntryPointManager {
         const sql = `SELECT COUNT(*) AS userOpsTotal FROM ENTRY_POINT_LOGS WHERE chain_id=?`;
         const result = await ConnectionManager.getInstance().querySql(sql, [chainId]);
         return `${result?.[0]?.userOpsTotal || 0}`;
+    }
+
+    async allEntryPoint() {
+        const allEntry = await this.getAllEntryPoint();
+        if (!allEntry) {
+            return [];
+        }
+        return allEntry.map(entry => entry.address);
     }
 
     async getAddressActivity(chainId, address, first, skip) {
@@ -685,7 +693,7 @@ class EntryPointManager {
                      FROM ENTRY_POINT_LOGS AS LOGS 
                      LEFT JOIN REVERT_REASON_LOGS AS REASON ON REASON.chain_id = LOGS.chain_id AND REASON.userOpHash = LOGS.userOpHash 
                      LEFT JOIN USER_OPERATION_INFO AS UA ON UA.chain_id = LOGS.chain_id AND UA.transactionHash = LOGS.transactionHash AND UA.sender = LOGS.sender AND UA.nonce = LOGS.nonce  
-                     LEFT JOIN ENTRY_POINT_TXS AS TXS ON TXS.chain_id = LOGS.chain_id AND TXS.hash = LOGS.transactionHash  
+                     LEFT JOIN ENTRY_POINT_INTERNAL_TXS AS TXS ON TXS.chain_id = LOGS.chain_id AND TXS.transactionHash = LOGS.transactionHash  
                      WHERE LOGS.chain_id=? AND LOGS.userOpHash IN (${strHash})
                `;
         let result = await ConnectionManager.getInstance().querySql(sql, [chainId]);
@@ -696,7 +704,7 @@ class EntryPointManager {
             internalTxs = internalTxs?.filter(tx => sender === tx.from?.toLowerCase() || sender === tx.to?.toLowerCase());
             return {
                 ...item,
-                internalTxs
+                internalTxs: internalTxs || []
             }
         });
         return result || [];

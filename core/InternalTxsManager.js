@@ -28,18 +28,18 @@ class InternalTxsManager {
             const info = infos[chainId];
             const url = info.url;
             const key = info.key;
-            const hash = await this.getNotInternalTx(chainId);
+            const { transactionHash, address } = await this.getNotInternalTx(chainId);
 
-            if (!hash) {
+            if (!transactionHash) {
                 // logger.info("intervalTask not hash");
                 continue;
             }
-            const internalTxs = await this.fetchScanInternalTx(url, hash, key);
+            const internalTxs = await this.fetchScanInternalTx(url, transactionHash, key);
             if (!internalTxs) {
                 continue;
             }
-            logger.info("intervalTask hash:", hash, chainId, internalTxs?.length)
-            await this.updateInternalTx(chainId, hash, internalTxs);
+            logger.info("intervalTask hash:", transactionHash, chainId, internalTxs?.length)
+            await this.updateInternalTx(chainId, address, transactionHash, internalTxs);
         }
     }
 
@@ -73,18 +73,21 @@ class InternalTxsManager {
     }
 
     async getNotInternalTx(chainId) {
-        const sql = 'SELECT hash FROM ENTRY_POINT_TXS WHERE chain_id=? AND internalTxs IS NULL ORDER BY blockNumber+0 DESC LIMIT 1';
-        const result = await ConnectionManager.getInstance().querySql(sql, [chainId, chainId]);
-        return result?.[0]?.hash;
+        const sql = `SELECT TXS.hash AS transactionHash, TXS.address AS address 
+                     FROM ENTRY_POINT_TXS AS TXS  
+                     LEFT JOIN ENTRY_POINT_INTERNAL_TXS AS INTERNAL_TXS ON INTERNAL_TXS.chain_id = TXS.chain_id AND INTERNAL_TXS.transactionHash = TXS.hash  
+                     WHERE TXS.chain_id=? AND INTERNAL_TXS.internalTxs IS NULL ORDER BY blockNumber+0 DESC LIMIT 1`;
+        const result = await ConnectionManager.getInstance().querySql(sql, [chainId]);
+        return { transactionHash: result?.[0]?.transactionHash, address: result?.[0]?.address };
     }
 
-    async updateInternalTx(chainId, txhash, internalTxs) {
+    async updateInternalTx(chainId, address, txhash, internalTxs) {
         if (!internalTxs) {
             return;
         }
         const json = JSON.stringify(internalTxs);
-        const sql = 'UPDATE ENTRY_POINT_TXS SET internalTxs=? WHERE chain_id=? AND hash=?';
-        await ConnectionManager.getInstance().querySql(sql, [json, chainId, txhash]);
+        const sql = 'INSERT INTO ENTRY_POINT_INTERNAL_TXS(chain_id,address,transactionHash,internalTxs) VALUES (?,?,?,?) ON DUPLICATE KEY UPDATE internalTxs=VALUES(internalTxs)';
+        await ConnectionManager.getInstance().querySql(sql, [chainId, address, txhash, json]);
     }
 
 }
