@@ -1,0 +1,27 @@
+{
+  "name": "aascan-server",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "startEngine": "Engine=true PORT=6003 node ./apiserver/webserver.js",
+    "startQuery": "node ./apiserver/webserver.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "bignumber.js": "^9.0.2",
+    "body-parser": "^1.18.3",
+    "express": "^4.17.2",
+    "log4js": "^2.10.0",
+    "mysql": "^2.18.1",
+    "mysql2": "^3.2.0",
+    "node-fetch": "^3.1.0",
+    "ethers": "^5.4.1",
+    "crypto-js": "^3.1.9-1"
+  }
+}

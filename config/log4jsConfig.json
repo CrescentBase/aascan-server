@@ -1,0 +1,50 @@
+{
+  "appenders": {
+    "access": {
+      "type": "dateFile",
+        "filename": "logs-api/req",
+          "pattern": "-MM-dd.log",
+            "category": "http",
+              "alwaysIncludePattern": true,
+                "keepFileExt": true
+    },
+    "console": {
+      "type": "stdout",
+        "level": "DEBUG"
+    },
+    "app": {
+      "type": "dateFile",
+        "filename": "logs-api/app",
+          "pattern": "-MM-dd.log",
+            "daysToKeep": 2,
+              "alwaysIncludePattern": true,
+                "keepFileExt": true
+    },
+    "bigResponse": {
+      "type": "file",
+        "filename": "logs-api/big_response.log",
+          "maxLogSize ": 31457280
+    },
+    "specialTest": {
+      "type": "file",
+        "filename": "logs-api/special_test.log",
+          "maxLogSize ": 31457280
+    },
+    "errorFile": {
+      "type": "file",
+        "filename": "logs-api/errors.log"
+    },
+    "errors": {
+      "type": "logLevelFilter",
+        "level": "ERROR",
+          "appender": "errorFile"
+    }
+  },
+  "categories": {
+    "default": { "appenders": ["app", "errors", "console"], "level": "DEBUG" },
+    "bigLog": { "appenders": ["bigResponse"], "level": "DEBUG" },
+    "specialTest": { "appenders": ["specialTest", "console"], "level": "DEBUG" },
+    "http": { "appenders": ["access"], "level": "DEBUG" }
+  },
+  "pm2": true
+}
