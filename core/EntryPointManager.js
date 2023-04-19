@@ -223,10 +223,30 @@ class EntryPointManager {
             const transactionHash = tx.hash;
             const chain_id = tx.chain_id;
             try {
-                if (!tx.input || !(tx.input.startsWith(this.METHOD_ID_HANDLE_OPS) || tx.input.startsWith(this.METHOD_ID_HANDLE_AGGREGATED_OPS))) {
+                if (!tx.input) {
                     return;
                 }
-                const decodedInput = this.abiCoder.decode(this.userOpsParams, "0x" + tx.input.slice(10));
+                let input;
+                if (tx.input.startsWith(this.METHOD_ID_HANDLE_OPS) || tx.input.startsWith(this.METHOD_ID_HANDLE_AGGREGATED_OPS)) {
+                    input = tx.input;
+                }
+                if (!input) {
+                    const index = tx.input.indexOf(this.METHOD_ID_HANDLE_OPS.slice(2));
+                    if (index > 0) {
+                        input = '0x' + tx.input.slice(index);
+                    }
+                }
+                if (!input) {
+                    const index = tx.input.indexOf(this.METHOD_ID_HANDLE_AGGREGATED_OPS.slice(2));
+                    if (index > 0) {
+                        input = '0x' + tx.input.slice(index);
+                    }
+                }
+                if (!input) {
+                    return;
+                }
+
+                const decodedInput = this.abiCoder.decode(this.userOpsParams, "0x" + input.slice(10));
                 const beneficiary = decodedInput[1];
                 const userOpInfo = decodedInput[0][0];
                 const sender = userOpInfo[0];
