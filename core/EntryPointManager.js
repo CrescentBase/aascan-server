@@ -375,7 +375,7 @@ class EntryPointManager {
         return detail;
     }
 
-    async getBlockActivity(chainId, blockNumber) {
+    async getBlockActivity(network, chainId, blockNumber) {
         const sql = `SELECT 
                         LOGS.paymaster as paymaster,
                         LOGS.address as entryPoint,
@@ -390,22 +390,8 @@ class EntryPointManager {
                         LOGS.blockHash AS blockHash,
                         LOGS.timeStamp AS blockTime,
                         LOGS.gasPrice AS gasPrice,
-                        LOGS.gasUsed AS gasUsed,
-                        REASON.revertReason AS revertReason,
-                        UA.initCode AS initCode,
-                        UA.callData AS callData,
-                        UA.callGasLimit AS callGasLimit,
-                        UA.verificationGasLimit AS verificationGasLimit,
-                        UA.preVerificationGas AS preVerificationGas,
-                        UA.maxFeePerGas AS maxFeePerGas,
-                        UA.maxPriorityFeePerGas AS maxPriorityFeePerGas,
-                        UA.paymasterAndData AS paymasterAndData,
-                        UA.signature AS signature,
-                        UA.beneficiary AS beneficiary,
-                        UA.factory AS factory 
+                        LOGS.gasUsed AS gasUsed 
                      FROM ENTRY_POINT_LOGS AS LOGS 
-                     LEFT JOIN REVERT_REASON_LOGS AS REASON ON REASON.chain_id = LOGS.chain_id AND REASON.userOpHash = LOGS.userOpHash 
-                     LEFT JOIN USER_OPERATION_INFO AS UA ON UA.chain_id = LOGS.chain_id AND UA.transactionHash = LOGS.transactionHash AND UA.sender = LOGS.sender AND UA.nonce = LOGS.nonce 
                      WHERE LOGS.chain_id=? AND LOGS.blockNumber=?
                      ORDER BY LOGS.timeStamp+0 DESC`;
         let result = await ConnectionManager.getInstance().querySql(sql, [chainId, blockNumber]);
@@ -436,22 +422,9 @@ class EntryPointManager {
                         LOGS.blockHash AS blockHash,
                         LOGS.timeStamp AS blockTime,
                         LOGS.gasPrice AS gasPrice,
-                        LOGS.gasUsed AS gasUsed,
-                        REASON.revertReason AS revertReason,
-                        UA.initCode AS initCode,
-                        UA.callData AS callData,
-                        UA.callGasLimit AS callGasLimit,
-                        UA.verificationGasLimit AS verificationGasLimit,
-                        UA.preVerificationGas AS preVerificationGas,
-                        UA.maxFeePerGas AS maxFeePerGas,
-                        UA.maxPriorityFeePerGas AS maxPriorityFeePerGas,
-                        UA.paymasterAndData AS paymasterAndData,
-                        UA.signature AS signature,
-                        UA.beneficiary AS beneficiary,
-                        UA.factory AS factory 
+                        LOGS.gasUsed AS gasUsed 
                      FROM USER_OPERATION_INFO AS UA 
                      LEFT JOIN ENTRY_POINT_LOGS AS LOGS ON UA.chain_id = LOGS.chain_id AND UA.transactionHash = LOGS.transactionHash AND UA.sender = LOGS.sender AND UA.nonce = LOGS.nonce 
-                     LEFT JOIN REVERT_REASON_LOGS AS REASON ON REASON.chain_id = LOGS.chain_id AND REASON.userOpHash = LOGS.userOpHash  
                      WHERE UA.chain_id=? AND UA.beneficiary=?
                      ORDER BY LOGS.timeStamp+0 DESC 
                      LIMIT ? OFFSET ?
@@ -483,23 +456,10 @@ class EntryPointManager {
                         LOGS.blockHash AS blockHash,
                         LOGS.timeStamp AS blockTime,
                         LOGS.gasPrice AS gasPrice,
-                        LOGS.gasUsed AS gasUsed,
-                        REASON.revertReason AS revertReason,
-                        UA.initCode AS initCode,
-                        UA.callData AS callData,
-                        UA.callGasLimit AS callGasLimit,
-                        UA.verificationGasLimit AS verificationGasLimit,
-                        UA.preVerificationGas AS preVerificationGas,
-                        UA.maxFeePerGas AS maxFeePerGas,
-                        UA.maxPriorityFeePerGas AS maxPriorityFeePerGas,
-                        UA.paymasterAndData AS paymasterAndData,
-                        UA.signature AS signature,
-                        UA.beneficiary AS beneficiary,
-                        UA.factory AS factory 
+                        LOGS.gasUsed AS gasUsed 
                      FROM ENTRY_POINT_LOGS AS LOGS 
-                     LEFT JOIN REVERT_REASON_LOGS AS REASON ON REASON.chain_id = LOGS.chain_id AND REASON.userOpHash = LOGS.userOpHash 
-                     LEFT JOIN USER_OPERATION_INFO AS UA ON UA.chain_id = LOGS.chain_id AND UA.transactionHash = LOGS.transactionHash AND UA.sender = LOGS.sender AND UA.nonce = LOGS.nonce 
                      WHERE LOGS.chain_id=? AND LOGS.address=? 
+                     ORDER BY LOGS.timeStamp+0 DESC 
                      LIMIT ? OFFSET ?
                `;
         let result = await ConnectionManager.getInstance().querySql(sql, [chainId, address, first, skip]);
@@ -516,7 +476,6 @@ class EntryPointManager {
         `;
         const totalResult = await ConnectionManager.getInstance().querySql(sqlTotal, [chainId, address]);
         const total = totalResult?.[0]?.total || 0;
-        console.log("getBundlerActivity total:", total);
         if (total <= 0) {
             return { total, userOps: [] };
         }
@@ -535,23 +494,9 @@ class EntryPointManager {
                         LOGS.blockHash AS blockHash,
                         LOGS.timeStamp AS blockTime,
                         LOGS.gasPrice AS gasPrice,
-                        LOGS.gasUsed AS gasUsed,
-                        REASON.revertReason AS revertReason,
-                        UA.initCode AS initCode,
-                        UA.callData AS callData,
-                        UA.callGasLimit AS callGasLimit,
-                        UA.verificationGasLimit AS verificationGasLimit,
-                        UA.preVerificationGas AS preVerificationGas,
-                        UA.maxFeePerGas AS maxFeePerGas,
-                        UA.maxPriorityFeePerGas AS maxPriorityFeePerGas,
-                        UA.paymasterAndData AS paymasterAndData,
-                        UA.signature AS signature,
-                        UA.beneficiary AS beneficiary,
-                        UA.factory AS factory 
+                        LOGS.gasUsed AS gasUsed 
                      FROM ENTRY_POINT_TXS AS TXS 
                      RIGHT JOIN ENTRY_POINT_LOGS AS LOGS ON TXS.chain_id = LOGS.chain_id AND TXS.hash = LOGS.transactionHash 
-                     LEFT JOIN REVERT_REASON_LOGS AS REASON ON REASON.chain_id = LOGS.chain_id AND REASON.userOpHash = LOGS.userOpHash 
-                     LEFT JOIN USER_OPERATION_INFO AS UA ON UA.chain_id = LOGS.chain_id AND UA.transactionHash = LOGS.transactionHash AND UA.sender = LOGS.sender AND UA.nonce = LOGS.nonce 
                      WHERE TXS.chain_id=? AND TXS.tx_from=?
                      ORDER BY TXS.timeStamp+0 DESC 
                      LIMIT ? OFFSET ?
@@ -584,23 +529,10 @@ class EntryPointManager {
                         LOGS.blockHash AS blockHash,
                         LOGS.timeStamp AS blockTime,
                         LOGS.gasPrice AS gasPrice,
-                        LOGS.gasUsed AS gasUsed,
-                        REASON.revertReason AS revertReason,
-                        UA.initCode AS initCode,
-                        UA.callData AS callData,
-                        UA.callGasLimit AS callGasLimit,
-                        UA.verificationGasLimit AS verificationGasLimit,
-                        UA.preVerificationGas AS preVerificationGas,
-                        UA.maxFeePerGas AS maxFeePerGas,
-                        UA.maxPriorityFeePerGas AS maxPriorityFeePerGas,
-                        UA.paymasterAndData AS paymasterAndData,
-                        UA.signature AS signature,
-                        UA.beneficiary AS beneficiary,
-                        UA.factory AS factory 
+                        LOGS.gasUsed AS gasUsed 
                      FROM ENTRY_POINT_LOGS AS LOGS 
-                     LEFT JOIN REVERT_REASON_LOGS AS REASON ON REASON.chain_id = LOGS.chain_id AND REASON.userOpHash = LOGS.userOpHash 
-                     LEFT JOIN USER_OPERATION_INFO AS UA ON UA.chain_id = LOGS.chain_id AND UA.transactionHash = LOGS.transactionHash AND UA.sender = LOGS.sender AND UA.nonce = LOGS.nonce 
                      WHERE LOGS.chain_id=? AND LOGS.paymaster=? 
+                     ORDER BY LOGS.timeStamp+0 DESC 
                      LIMIT ? OFFSET ?
                `;
         let result = await ConnectionManager.getInstance().querySql(sql, [chainId, address, first, skip]);
@@ -630,23 +562,10 @@ class EntryPointManager {
                         LOGS.blockHash AS blockHash,
                         LOGS.timeStamp AS blockTime,
                         LOGS.gasPrice AS gasPrice,
-                        LOGS.gasUsed AS gasUsed,
-                        REASON.revertReason AS revertReason,
-                        UA.initCode AS initCode,
-                        UA.callData AS callData,
-                        UA.callGasLimit AS callGasLimit,
-                        UA.verificationGasLimit AS verificationGasLimit,
-                        UA.preVerificationGas AS preVerificationGas,
-                        UA.maxFeePerGas AS maxFeePerGas,
-                        UA.maxPriorityFeePerGas AS maxPriorityFeePerGas,
-                        UA.paymasterAndData AS paymasterAndData,
-                        UA.signature AS signature,
-                        UA.beneficiary AS beneficiary,
-                        UA.factory AS factory 
+                        LOGS.gasUsed AS gasUsed 
                      FROM ENTRY_POINT_LOGS AS LOGS 
-                     LEFT JOIN REVERT_REASON_LOGS AS REASON ON REASON.chain_id = LOGS.chain_id AND REASON.userOpHash = LOGS.userOpHash 
-                     LEFT JOIN USER_OPERATION_INFO AS UA ON UA.chain_id = LOGS.chain_id AND UA.transactionHash = LOGS.transactionHash AND UA.sender = LOGS.sender AND UA.nonce = LOGS.nonce 
                      WHERE LOGS.chain_id=? AND LOGS.sender=? 
+                     ORDER BY LOGS.timeStamp+0 DESC 
                      LIMIT ? OFFSET ?
                `;
         let result = await ConnectionManager.getInstance().querySql(sql, [chainId, address, first, skip]);
@@ -750,22 +669,8 @@ class EntryPointManager {
                         LOGS.blockHash AS blockHash,
                         LOGS.timeStamp AS blockTime,
                         LOGS.gasPrice AS gasPrice,
-                        LOGS.gasUsed AS gasUsed,
-                        REASON.revertReason AS revertReason,
-                        UA.initCode AS initCode,
-                        UA.callData AS callData,
-                        UA.callGasLimit AS callGasLimit,
-                        UA.verificationGasLimit AS verificationGasLimit,
-                        UA.preVerificationGas AS preVerificationGas,
-                        UA.maxFeePerGas AS maxFeePerGas,
-                        UA.maxPriorityFeePerGas AS maxPriorityFeePerGas,
-                        UA.paymasterAndData AS paymasterAndData,
-                        UA.signature AS signature,
-                        UA.beneficiary AS beneficiary,
-                        UA.factory AS factory 
+                        LOGS.gasUsed AS gasUsed 
                      FROM ENTRY_POINT_LOGS AS LOGS 
-                     LEFT JOIN REVERT_REASON_LOGS AS REASON ON REASON.chain_id = LOGS.chain_id AND REASON.userOpHash = LOGS.userOpHash 
-                     LEFT JOIN USER_OPERATION_INFO AS UA ON UA.chain_id = LOGS.chain_id AND UA.transactionHash = LOGS.transactionHash AND UA.sender = LOGS.sender AND UA.nonce = LOGS.nonce 
                      WHERE LOGS.chain_id=? 
                      ORDER BY LOGS.timeStamp+0 DESC 
                      LIMIT ? OFFSET ?`;
