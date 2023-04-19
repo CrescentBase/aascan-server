@@ -701,7 +701,7 @@ class EntryPointManager {
 
         let result = await ConnectionManager.getInstance().querySql(sql, [chainId, this.METHOD_ID_HANDLE_OPS, this.METHOD_ID_HANDLE_AGGREGATED_OPS, first, skip]);
         if (!result?.length) {
-            return [];
+            return { total: 0, bundles: [] };
         }
         let strHash;
         result.forEach(item => {
@@ -713,10 +713,8 @@ class EntryPointManager {
         });
 
         const opSql = `SELECT userOpHash, transactionHash FROM ENTRY_POINT_LOGS WHERE chain_id=? AND transactionHash IN (${strHash})`;
-        const ops = await ConnectionManager.getInstance().querySql(opSql, [chainId]);
-        if (!ops?.length) {
-            return [];
-        }
+        let ops = await ConnectionManager.getInstance().querySql(opSql, [chainId]);
+        ops = ops || [];
         result = result.map(item => {
             const curOps = ops.filter(op => op.transactionHash === item.transactionHash);
             return {
