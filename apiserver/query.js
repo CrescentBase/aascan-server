@@ -185,11 +185,12 @@ requestMethod("/getAddressActivity", async (req, res) => {
 
 requestMethod("/allEntryPoint", async (req, res) => {
     try {
-        const entryPoint = await EntryPointManager.allEntryPoint();
-        normalResultHandler({ entryPoint }, res, req, false);
+        const { chainId, network } = formatParam(req);
+        const result = await EntryPointManager.allEntryPoint(chainId, network);
+        normalResultHandler({ ...result }, res, req, false);
     } catch(err) {
         console.log("allEntryPoint", util.inspect(err));
-        normalResultHandler({ entryPoint: [] }, res, req, false);
+        normalResultHandler({ total: 0, entryPoint: [] }, res, req, false);
     }
 });
 

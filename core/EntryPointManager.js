@@ -288,7 +288,7 @@ class EntryPointManager {
     }
 
     async getAllEntryPoint() {
-        const sql = 'SELECT address,support_chains,uo_event_topic,account_deployed_topic,uo_revert_reason_topic FROM ENTRY_POINT_CONFIG';
+        const sql = 'SELECT address,name,support_chains,uo_event_topic,account_deployed_topic,uo_revert_reason_topic FROM ENTRY_POINT_CONFIG';
         return await ConnectionManager.getInstance().querySql(sql);
     }
 
@@ -318,12 +318,39 @@ class EntryPointManager {
         return result?.[0]?.userOpsTotal || 0;
     }
 
-    async allEntryPoint() {
+    async getEntryPointOpCount(chainId, address) {
+        const sql = `SELECT COUNT(*) AS userOpsTotal FROM ENTRY_POINT_LOGS WHERE chain_id=? AND address=?`;
+        const result = await ConnectionManager.getInstance().querySql(sql, [chainId, address]);
+        return result?.[0]?.userOpsTotal || 0;
+    }
+
+    async getEntryPointLastOp(chainId, address) {
+        const sql = `SELECT blockNumber, timeStamp AS blockTime FROM ENTRY_POINT_LOGS  WHERE chain_id=? AND address=? ORDER BY timeStamp+0 DESC limit 1`;
+        const result = await ConnectionManager.getInstance().querySql(sql, [chainId, address]);
+        return result?.[0] || {};
+    }
+
+    async allEntryPoint(chainId, network) {
         const allEntry = await this.getAllEntryPoint();
         if (!allEntry) {
-            return [];
+            return { total: 0, entryPoint: [] };
         }
-        return allEntry.map(entry => entry.address);
+        const result = [];
+        for (const entry of allEntry) {
+            const ep = entry.address.toLowerCase();
+            const count = await this.getEntryPointOpCount(chainId, ep);
+            const op = await this.getEntryPointLastOp(chainId, ep);
+            result.push({
+                address: entry.address,
+                name: entry.name,
+                ops: count,
+                blockNumber: op.blockNumber,
+                blockTime: op.blockTime,
+                network
+            });
+        }
+
+        return { total: allEntry.length, entryPoint: result };
     }
 
     async getAddressActivity(network, chainId, address, first, skip) {

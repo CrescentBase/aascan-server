@@ -3,6 +3,7 @@ drop table if exists ENTRY_POINT_CONFIG;
 create table ENTRY_POINT_CONFIG (
     id bigint(32) unsigned auto_increment primary key,
     address char(255) not null comment 'entry point address',
+    name char(255) DEFAULT NULL COMMENT 'en name',
     support_chains text comment 'support chainIds',
     uo_event_topic char(255) not null comment 'UserOperationEvent topic',
     account_deployed_topic char(255) not null comment 'AccountDeployed topic',
