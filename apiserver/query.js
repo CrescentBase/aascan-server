@@ -169,13 +169,13 @@ requestMethod("/getBlockActivity", async (req, res) => {
 
 requestMethod("/getAddressActivity", async (req, res) => {
     try {
-        const { chainId, first, skip, network } = formatParam(req);
+        const { chainId, first, skip, network, type } = formatParam(req);
         const address = req.query?.address;
         if (!address) {
             normalResultHandler({ detail: {} }, res, req, false);
             return;
         }
-        const detail = await EntryPointManager.getAddressActivity(network, chainId, address, first, skip);
+        const detail = await EntryPointManager.getAddressActivity(network, chainId, address, first, skip, type);
         normalResultHandler({ detail }, res, req, false);
     } catch(err) {
         console.log("getAddressActivity", util.inspect(err));

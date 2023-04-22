@@ -3,7 +3,8 @@ import { getLogger } from '../config/LoggerUtils.js';
 import utils from "util";
 import { ethers } from "ethers";
 import {getBaseHeaders, timeoutFetch} from "../utils/FetchUtils.js";
-import {getChainId} from "../utils/NetworkUtils.js";
+import {TYPE_BENEFICIARY, TYPE_BUNDLER, TYPE_ENTRYPOINT, TYPE_PAYMASTER, TYPE_SENDER} from "../utils/utils.js";
+import {getNetwork} from "../utils/NetworkUtils.js";
 
 const logger = getLogger("EntryPointManager");
 
@@ -373,9 +374,10 @@ class EntryPointManager {
         return { total: allEntry.length, entryPoint: result };
     }
 
-    async getAddressActivity(network, chainId, address, first, skip) {
+
+    async getAddressActivity(network, chainId, address, first, skip, type) {
         const detail = {
-            type: "Unknown",
+            type: type || "Unknown",
             address,
             userOps: [],
             network,
@@ -384,49 +386,56 @@ class EntryPointManager {
         if (!address || !ethers.utils.isAddress(address)) {
             return detail;
         }
-        let result = await this.getEntryPointActivity(network, chainId, address, first, skip);
-        if (result?.userOps?.length > 0) {
-            detail.type = "EntryPoint";
-            detail.userOps = result.userOps;
-            detail.total = result.total;
-            return detail;
+        let result;
+        let curType = TYPE_ENTRYPOINT;
+        if (!type || type === curType) {
+            result = await this.getEntryPointActivity(network, chainId, address, first, skip);
         }
-        result = await this.getPaymasterActivity(network, chainId, address, first, skip);
-        if (result?.userOps?.length > 0) {
-            detail.type = "Paymaster";
-            detail.userOps = result.userOps;
-            detail.total = result.total;
-            return detail;
+        if (type !== curType && (!result || !result.userOps || result.userOps.length <= 0)) {
+            curType = TYPE_PAYMASTER;
+            if (!type || type === curType) {
+                result = await this.getPaymasterActivity(network, chainId, address, first, skip);
+            }
         }
-        result = await this.getBundlerActivity(network, chainId, address, first, skip);
-        if (result?.userOps?.length > 0) {
-            detail.type = "Bundler";
-            detail.userOps = result.userOps;
-            detail.total = result.total;
-            return detail;
+
+        if (type !== curType && (!result || !result.userOps || result.userOps.length <= 0)) {
+            curType = TYPE_BUNDLER;
+            if (!type || type === curType) {
+                result = await this.getBundlerActivity(network, chainId, address, first, skip);
+            }
         }
-        result = await this.getBeneficiaryActivity(network, chainId, address, first, skip);
-        if (result?.userOps?.length > 0) {
-            detail.type = "Beneficiary";
-            detail.userOps = result.userOps;
-            detail.total = result.total;
-            return detail;
+
+        if (type !== curType && (!result || !result.userOps || result.userOps.length <= 0)) {
+            curType = TYPE_BENEFICIARY;
+            if (!type || type === curType) {
+                result = await this.getBeneficiaryActivity(network, chainId, address, first, skip);
+            }
         }
-        result = await this.getSenderActivity(network, chainId, address, first, skip);
-        if (result?.userOps?.length > 0) {
-            detail.type = "Sender";
-            detail.userOps = result.userOps;
-            detail.total = result.total;
+
+        if (type !== curType && (!result || !result.userOps || result.userOps.length <= 0)) {
+            curType = TYPE_SENDER;
+            if (!type || type === curType) {
+                result = await this.getSenderActivity(network, chainId, address, first, skip);
+            }
+        }
+
+        if (result?.userOps?.length > 0 || type) {
+            detail.type = curType;
+            detail.userOps = result?.userOps || [];
+            detail.total = result?.total || 0;
             return detail;
         }
         return detail;
     }
 
     async getBlockActivity(network, chainId, blockNumber) {
+        const values = chainId ? [chainId, blockNumber] : [blockNumber];
+        const subSql = chainId ? `LOGS.chain_id=? AND LOGS.blockNumber=?` : `LOGS.blockNumber=?`;
         const sql = `SELECT 
-                        LOGS.paymaster as paymaster,
-                        LOGS.address as entryPoint,
-                        LOGS.userOpHash as userOpHash,
+                        LOGS.chain_id AS chain_id,
+                        LOGS.paymaster AS paymaster,
+                        LOGS.address AS entryPoint,
+                        LOGS.userOpHash AS userOpHash,
                         LOGS.nonce AS nonce, 
                         LOGS.transactionHash AS transactionHash, 
                         LOGS.success AS success, 
@@ -439,26 +448,34 @@ class EntryPointManager {
                         LOGS.gasPrice AS gasPrice,
                         LOGS.gasUsed AS gasUsed 
                      FROM ENTRY_POINT_LOGS AS LOGS 
-                     WHERE LOGS.chain_id=? AND LOGS.blockNumber=?
+                     WHERE ${subSql} 
                      ORDER BY LOGS.timeStamp+0 DESC`;
-        let result = await ConnectionManager.getInstance().querySql(sql, [chainId, blockNumber]);
-        result = result?.map(uo => {return { ...uo, success: uo.success !== "0", network };});
+        let result = await ConnectionManager.getInstance().querySql(sql, values);
+        result = result?.map(uo => {return { ...uo, success: uo.success !== "0", network: network || getNetwork(uo.chain_id) };});
         return result || [];
     }
 
     async getBeneficiaryActivity(network, chainId, address, first, skip) {
-        const sqlTotal = `SELECT count(*) as total FROM USER_OPERATION_INFO WHERE chain_id=? AND beneficiary=?`;
-        const totalResult = await ConnectionManager.getInstance().querySql(sqlTotal, [chainId, address]);
-        const total = totalResult?.[0]?.total || 0;
-        if (total <= 0) {
-            return { total, userOps: [] };
+        let total = 0;
+        if (skip === 0) {
+            const values = chainId ? [chainId, address] : [address];
+            const whereSql = chainId ? "chain_id=? AND beneficiary=?" : "beneficiary=?";
+            const sqlTotal = `SELECT count(*) as total FROM USER_OPERATION_INFO WHERE ${whereSql}`;
+            const totalResult = await ConnectionManager.getInstance().querySql(sqlTotal, values);
+            total = totalResult?.[0]?.total || 0;
+            if (total <= 0) {
+                return { total, userOps: [] };
+            }
         }
 
+        const values = chainId ? [chainId, address, first, skip] : [address, first, skip];
+        const subSql = chainId ? `UA.chain_id=? AND UA.beneficiary=?` : `UA.beneficiary=?`;
         const sql = `
                      SELECT 
-                        LOGS.paymaster as paymaster,
-                        LOGS.address as entryPoint,
-                        LOGS.userOpHash as userOpHash,
+                        LOGS.chain_id AS chain_id,
+                        LOGS.paymaster AS paymaster,
+                        LOGS.address AS entryPoint,
+                        LOGS.userOpHash AS userOpHash,
                         LOGS.nonce AS nonce, 
                         LOGS.transactionHash AS transactionHash, 
                         LOGS.success AS success, 
@@ -472,27 +489,36 @@ class EntryPointManager {
                         LOGS.gasUsed AS gasUsed 
                      FROM USER_OPERATION_INFO AS UA 
                      LEFT JOIN ENTRY_POINT_LOGS AS LOGS ON UA.chain_id = LOGS.chain_id AND UA.transactionHash = LOGS.transactionHash AND UA.sender = LOGS.sender AND UA.nonce = LOGS.nonce 
-                     WHERE UA.chain_id=? AND UA.beneficiary=?
+                     WHERE ${subSql} 
                      ORDER BY LOGS.timeStamp+0 DESC 
                      LIMIT ? OFFSET ?
         `;
-        let result = await ConnectionManager.getInstance().querySql(sql, [chainId, address, first, skip]);
-        result = result?.map(uo => {return { ...uo, success: uo.success !== "0", network };});
+        let result = await ConnectionManager.getInstance().querySql(sql, values);
+        result = result?.map(uo => {return { ...uo, success: uo.success !== "0", network: network || getNetwork(uo.chain_id) };});
         return { total, userOps: result || [] };
     }
 
     async getEntryPointActivity(network, chainId, address, first, skip) {
-        const sqlTotal = `SELECT count(*) as total FROM ENTRY_POINT_LOGS WHERE chain_id=? AND address=?`;
-        const totalResult = await ConnectionManager.getInstance().querySql(sqlTotal, [chainId, address]);
-        const total = totalResult?.[0]?.total || 0;
-        if (total <= 0) {
-            return { total, userOps: [] };
+        let total = 0;
+        if (skip === 0) {
+            const values = chainId ? [chainId, address] : [address];
+            const whereSql = chainId ? "chain_id=? AND address=?" : "address=?";
+            const sqlTotal = `SELECT count(*) as total FROM ENTRY_POINT_LOGS WHERE ${whereSql}`
+            const totalResult = await ConnectionManager.getInstance().querySql(sqlTotal, values);
+            total = totalResult?.[0]?.total || 0;
+            if (total <= 0) {
+                return { total, userOps: [] };
+            }
         }
 
+        const values = chainId ? [chainId, address, first, skip] : [address, first, skip];
+        const subSql = chainId ? `LOGS.chain_id=? AND LOGS.address=?` : `LOGS.address=?`;
+
         const sql = `SELECT 
-                        LOGS.paymaster as paymaster,
-                        LOGS.address as entryPoint,
-                        LOGS.userOpHash as userOpHash,
+                        LOGS.chain_id AS chain_id,
+                        LOGS.paymaster AS paymaster,
+                        LOGS.address AS entryPoint,
+                        LOGS.userOpHash AS userOpHash,
                         LOGS.nonce AS nonce, 
                         LOGS.transactionHash AS transactionHash, 
                         LOGS.success AS success, 
@@ -505,67 +531,84 @@ class EntryPointManager {
                         LOGS.gasPrice AS gasPrice,
                         LOGS.gasUsed AS gasUsed 
                      FROM ENTRY_POINT_LOGS AS LOGS 
-                     WHERE LOGS.chain_id=? AND LOGS.address=? 
+                     WHERE ${subSql} 
                      ORDER BY LOGS.timeStamp+0 DESC 
                      LIMIT ? OFFSET ?
                `;
-        let result = await ConnectionManager.getInstance().querySql(sql, [chainId, address, first, skip]);
-        result = result?.map(uo => {return { ...uo, success: uo.success !== "0", network };});
+        let result = await ConnectionManager.getInstance().querySql(sql, values);
+        result = result?.map(uo => {return { ...uo, success: uo.success !== "0", network: network || getNetwork(uo.chain_id) };});
         return { total, userOps: result || [] };
     }
 
     async getBundlerActivity(network, chainId, address, first, skip) {
-        const sqlTotal = `
-            SELECT count(LOGS.sender) as total
-                     FROM ENTRY_POINT_TXS AS TXS 
-                     RIGHT JOIN ENTRY_POINT_LOGS AS LOGS ON TXS.chain_id = LOGS.chain_id AND TXS.hash = LOGS.transactionHash 
-                     WHERE TXS.chain_id=? AND TXS.tx_from=?
-        `;
-        const totalResult = await ConnectionManager.getInstance().querySql(sqlTotal, [chainId, address]);
-        const total = totalResult?.[0]?.total || 0;
-        if (total <= 0) {
-            return { total, userOps: [] };
+        let total = 0;
+        if (skip === 0) {
+            const values = chainId ? [chainId, address] : [address];
+            const whereSql = chainId ? "TXS.chain_id=? AND TXS.tx_from=?" : "TXS.tx_from=?";
+            const sqlTotal = `
+                                 SELECT count(LOGS.sender) as total
+                                 FROM ENTRY_POINT_TXS AS TXS 
+                                 RIGHT JOIN ENTRY_POINT_LOGS AS LOGS ON TXS.chain_id = LOGS.chain_id AND TXS.hash = LOGS.transactionHash 
+                                 WHERE ${whereSql}
+                            `;
+            const totalResult = await ConnectionManager.getInstance().querySql(sqlTotal, values);
+            total = totalResult?.[0]?.total || 0;
+            if (total <= 0) {
+                return { total, userOps: [] };
+            }
         }
 
+        const values = chainId ? [chainId, address, first, skip] : [address, first, skip];
+        const subSql = chainId ? `TXS.chain_id=? AND TXS.tx_from=?` : `TXS.tx_from=?`;
         const sql = `
-            SELECT LOGS.paymaster as paymaster,
-                        LOGS.address as entryPoint,
-                        LOGS.userOpHash as userOpHash,
-                        LOGS.nonce AS nonce, 
-                        LOGS.transactionHash AS transactionHash, 
-                        LOGS.success AS success, 
-                        LOGS.sender AS sender, 
-                        LOGS.actualGasCost AS actualGasCost, 
-                        LOGS.actualGasUsed AS actualGasUsed, 
-                        LOGS.blockNumber AS blockNumber,
-                        LOGS.blockHash AS blockHash,
-                        LOGS.timeStamp AS blockTime,
-                        LOGS.gasPrice AS gasPrice,
-                        LOGS.gasUsed AS gasUsed 
-                     FROM ENTRY_POINT_TXS AS TXS 
-                     RIGHT JOIN ENTRY_POINT_LOGS AS LOGS ON TXS.chain_id = LOGS.chain_id AND TXS.hash = LOGS.transactionHash 
-                     WHERE TXS.chain_id=? AND TXS.tx_from=?
-                     ORDER BY TXS.timeStamp+0 DESC 
-                     LIMIT ? OFFSET ?
+                SELECT 
+                    LOGS.chain_id AS chain_id,
+                    LOGS.paymaster AS paymaster,
+                    LOGS.address AS entryPoint,
+                    LOGS.userOpHash AS userOpHash,
+                    LOGS.nonce AS nonce, 
+                    LOGS.transactionHash AS transactionHash, 
+                    LOGS.success AS success, 
+                    LOGS.sender AS sender, 
+                    LOGS.actualGasCost AS actualGasCost, 
+                    LOGS.actualGasUsed AS actualGasUsed, 
+                    LOGS.blockNumber AS blockNumber,
+                    LOGS.blockHash AS blockHash,
+                    LOGS.timeStamp AS blockTime,
+                    LOGS.gasPrice AS gasPrice,
+                    LOGS.gasUsed AS gasUsed 
+                FROM ENTRY_POINT_TXS AS TXS 
+                RIGHT JOIN ENTRY_POINT_LOGS AS LOGS ON TXS.chain_id = LOGS.chain_id AND TXS.hash = LOGS.transactionHash 
+                WHERE ${subSql} 
+                ORDER BY TXS.timeStamp+0 DESC 
+                LIMIT ? OFFSET ?
         `;
-        let result = await ConnectionManager.getInstance().querySql(sql, [chainId, address, first, skip]);
-        result = result?.map(uo => {return { ...uo, success: uo.success !== "0", network };});
+        let result = await ConnectionManager.getInstance().querySql(sql, values);
+        result = result?.map(uo => {return { ...uo, success: uo.success !== "0", network: network || getNetwork(uo.chain_id) };});
         return { total, userOps: result || [] };
     }
 
 
     async getPaymasterActivity(network, chainId, address, first, skip) {
-        const sqlTotal = `SELECT count(*) as total FROM ENTRY_POINT_LOGS WHERE chain_id=? AND paymaster=?`;
-        const totalResult = await ConnectionManager.getInstance().querySql(sqlTotal, [chainId, address]);
-        const total = totalResult?.[0]?.total || 0;
-        if (total <= 0) {
-            return { total, userOps: [] };
+        let total = 0;
+        if (skip === 0) {
+            const values = chainId ? [chainId, address] : [address];
+            const whereSql = chainId ? "chain_id=? AND paymaster=?" : "paymaster=?";
+            const sqlTotal = `SELECT count(*) as total FROM ENTRY_POINT_LOGS WHERE ${whereSql}`;
+            const totalResult = await ConnectionManager.getInstance().querySql(sqlTotal, values);
+            total = totalResult?.[0]?.total || 0;
+            if (total <= 0) {
+                return { total, userOps: [] };
+            }
         }
 
+        const values = chainId ? [chainId, address, first, skip] : [address, first, skip];
+        const subSql = chainId ? `LOGS.chain_id=? AND LOGS.paymaster=?` : `LOGS.paymaster=?`;
         const sql = `SELECT 
-                        LOGS.paymaster as paymaster,
-                        LOGS.address as entryPoint,
-                        LOGS.userOpHash as userOpHash,
+                        LOGS.chain_id AS chain_id,
+                        LOGS.paymaster AS paymaster,
+                        LOGS.address AS entryPoint,
+                        LOGS.userOpHash AS userOpHash,
                         LOGS.nonce AS nonce, 
                         LOGS.transactionHash AS transactionHash, 
                         LOGS.success AS success, 
@@ -578,24 +621,32 @@ class EntryPointManager {
                         LOGS.gasPrice AS gasPrice,
                         LOGS.gasUsed AS gasUsed 
                      FROM ENTRY_POINT_LOGS AS LOGS 
-                     WHERE LOGS.chain_id=? AND LOGS.paymaster=? 
+                     WHERE ${subSql}  
                      ORDER BY LOGS.timeStamp+0 DESC 
                      LIMIT ? OFFSET ?
                `;
-        let result = await ConnectionManager.getInstance().querySql(sql, [chainId, address, first, skip]);
-        result = result?.map(uo => {return { ...uo, success: uo.success !== "0", network };});
+        let result = await ConnectionManager.getInstance().querySql(sql, values);
+        result = result?.map(uo => {return { ...uo, success: uo.success !== "0", network: network || getNetwork(uo.chain_id) };});
         return { total, userOps: result || [] };
     }
 
     async getSenderActivity(network, chainId, address, first, skip) {
-        const sqlTotal = `SELECT count(*) as total FROM ENTRY_POINT_LOGS WHERE chain_id=? AND sender=?`;
-        const totalResult = await ConnectionManager.getInstance().querySql(sqlTotal, [chainId, address]);
-        const total = totalResult?.[0]?.total || 0;
-        if (total <= 0) {
-            return { total, userOps: [] };
+        let total = 0;
+        if (skip === 0) {
+            const values = chainId ? [chainId, address] : [address];
+            const whereSql = chainId ? "chain_id=? AND sender=?" : "sender=?";
+            const sqlTotal = `SELECT count(*) as total FROM ENTRY_POINT_LOGS WHERE ${whereSql}`;
+            const totalResult = await ConnectionManager.getInstance().querySql(sqlTotal, values);
+            total = totalResult?.[0]?.total || 0;
+            if (total <= 0) {
+                return { total, userOps: [] };
+            }
         }
 
+        const values = chainId ? [chainId, address, first, skip] : [address, first, skip];
+        const subSql = chainId ? `LOGS.chain_id=? AND LOGS.sender=?` : `LOGS.sender=?`;
         const sql = `SELECT 
+                        LOGS.chain_id AS chain_id,
                         LOGS.paymaster as paymaster,
                         LOGS.address as entryPoint,
                         LOGS.userOpHash as userOpHash,
@@ -611,12 +662,12 @@ class EntryPointManager {
                         LOGS.gasPrice AS gasPrice,
                         LOGS.gasUsed AS gasUsed 
                      FROM ENTRY_POINT_LOGS AS LOGS 
-                     WHERE LOGS.chain_id=? AND LOGS.sender=? 
+                     WHERE ${subSql} 
                      ORDER BY LOGS.timeStamp+0 DESC 
                      LIMIT ? OFFSET ?
                `;
-        let result = await ConnectionManager.getInstance().querySql(sql, [chainId, address, first, skip]);
-        result = result?.map(uo => {return { ...uo, success: uo.success !== "0", network };});
+        let result = await ConnectionManager.getInstance().querySql(sql, values);
+        result = result?.map(uo => {return { ...uo, success: uo.success !== "0", network: network || getNetwork(uo.chain_id) };});
         return { total, userOps: result || [] };
     }
 
@@ -629,7 +680,11 @@ class EntryPointManager {
                 strHash = `${strHash},'${hash}'`;
             }
         });
+
+        const values = chainId ? [chainId] : [];
+        const whereSql = chainId ? `LOGS.chain_id=? AND LOGS.userOpHash IN (${strHash})` : `LOGS.userOpHash IN (${strHash})`;
         const sql = `SELECT 
+                        LOGS.chain_id AS chain_id,
                         LOGS.paymaster AS paymaster,
                         LOGS.address AS entryPoint,
                         LOGS.userOpHash AS userOpHash,
@@ -665,10 +720,10 @@ class EntryPointManager {
                      LEFT JOIN USER_OPERATION_INFO AS UA ON UA.chain_id = LOGS.chain_id AND UA.transactionHash = LOGS.transactionHash AND UA.sender = LOGS.sender AND UA.nonce = LOGS.nonce  
                      LEFT JOIN ENTRY_POINT_INTERNAL_TXS AS TXS ON TXS.chain_id = LOGS.chain_id AND TXS.transactionHash = LOGS.transactionHash  
                      LEFT JOIN ENTRY_POINT_TXS AS EPTXS ON EPTXS.chain_id = LOGS.chain_id AND EPTXS.hash = LOGS.transactionHash  
-                     WHERE LOGS.chain_id=? AND LOGS.userOpHash IN (${strHash})
+                     WHERE ${whereSql}
                `;
-        let result = await ConnectionManager.getInstance().querySql(sql, [chainId]);
-        result = result?.map(uo => {return { ...uo, success: uo.success !== "0" };});
+        let result = await ConnectionManager.getInstance().querySql(sql, values);
+        result = result?.map(uo => {return { ...uo, success: uo.success !== "0", network: network || getNetwork(uo.chain_id) };});
         result = result?.map(item => {
             let internalTxs = JSON.parse(item.internalTxs);
             const sender = item.sender.toLowerCase();
@@ -690,8 +745,7 @@ class EntryPointManager {
             return {
                 ...item,
                 original,
-                internalTxs: internalTxs || [],
-                network
+                internalTxs: internalTxs || []
             }
         });
         return result || [];
