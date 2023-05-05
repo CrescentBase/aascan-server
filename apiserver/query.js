@@ -3,6 +3,7 @@ const router = express.Router();
 import {formatParam, normalResultHandler} from '../utils/RequestUtils.js';
 import EntryPointManager from "../core/EntryPointManager.js";
 import util from "util";
+import {TYPE_UNKNOWN} from "../utils/utils.js";
 
 let requestMethod = router.get.bind(router);
 
@@ -179,9 +180,21 @@ requestMethod("/getAddressActivity", async (req, res) => {
         normalResultHandler({ detail }, res, req, false);
     } catch(err) {
         console.log("getAddressActivity", util.inspect(err));
-        normalResultHandler({ detail: { type: "Unknown", userOps: [], total: 0 } }, res, req, false);
+        normalResultHandler({ detail: { type: TYPE_UNKNOWN, userOps: [], total: 0 } }, res, req, false);
     }
 });
+
+requestMethod("/getAddressNetworks", async (req, res) => {
+    try {
+        const address = req.query.address;
+        const result = await EntryPointManager.getAddressNetworks(address);
+        normalResultHandler({ ...result }, res, req, false);
+    } catch(err) {
+        console.log("getAddressNetworks", util.inspect(err));
+        normalResultHandler({ type: TYPE_UNKNOWN, networks: [] }, res, req, false);
+    }
+});
+
 
 requestMethod("/allEntryPoint", async (req, res) => {
     try {

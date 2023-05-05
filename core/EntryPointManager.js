@@ -3,7 +3,14 @@ import { getLogger } from '../config/LoggerUtils.js';
 import utils from "util";
 import { ethers } from "ethers";
 import {getBaseHeaders, timeoutFetch} from "../utils/FetchUtils.js";
-import {TYPE_BENEFICIARY, TYPE_BUNDLER, TYPE_ENTRYPOINT, TYPE_PAYMASTER, TYPE_SENDER} from "../utils/utils.js";
+import {
+    TYPE_BENEFICIARY,
+    TYPE_BUNDLER,
+    TYPE_ENTRYPOINT,
+    TYPE_PAYMASTER,
+    TYPE_SENDER,
+    TYPE_UNKNOWN
+} from "../utils/utils.js";
 import {getNetwork} from "../utils/NetworkUtils.js";
 
 const logger = getLogger("EntryPointManager");
@@ -374,10 +381,41 @@ class EntryPointManager {
         return { total: allEntry.length, entryPoint: result };
     }
 
+    async getAddressNetworks(address) {
+        const result = {
+            type: TYPE_UNKNOWN,
+            address,
+            networks: []
+        };
+        let type = TYPE_ENTRYPOINT;
+        let networks = await this.getEntryPointNetworks(address);
+        if (networks.length <= 0) {
+            type = TYPE_PAYMASTER;
+            networks = await this.getPaymasterNetworks(address);
+        }
+        if (networks.length <= 0) {
+            type = TYPE_BUNDLER;
+            networks = await this.getBundlerNetworks(address);
+        }
+        if (networks.length <= 0) {
+            type = TYPE_BENEFICIARY;
+            networks = await this.getBeneficiaryNetworks(address);
+        }
+        if (networks.length <= 0) {
+            type = TYPE_SENDER;
+            networks = await this.getSenderNetworks(address);
+        }
+        if (networks.length > 0) {
+            result.type = type;
+            result.networks = networks;
+        }
+        return result;
+    }
+
 
     async getAddressActivity(network, chainId, address, first, skip, type) {
         const detail = {
-            type: type || "Unknown",
+            type: type || TYPE_UNKNOWN,
             address,
             userOps: [],
             network,
@@ -455,6 +493,12 @@ class EntryPointManager {
         return result || [];
     }
 
+    async getBeneficiaryNetworks(address) {
+        const sql = `SELECT DISTINCT chain_id FROM USER_OPERATION_INFO WHERE beneficiary=?`;
+        const result = await ConnectionManager.getInstance().querySql(sql, [address]);
+        return result?.map(item => getNetwork(item.chain_id)) || [];
+    }
+
     async getBeneficiaryActivity(network, chainId, address, first, skip) {
         let total = 0;
         if (skip === 0) {
@@ -498,6 +542,12 @@ class EntryPointManager {
         return { total, userOps: result || [] };
     }
 
+    async getEntryPointNetworks(address) {
+        const sql = `SELECT DISTINCT chain_id FROM ENTRY_POINT_LOGS WHERE address=?`;
+        const result = await ConnectionManager.getInstance().querySql(sql, [address]);
+        return result?.map(item => getNetwork(item.chain_id)) || [];
+    }
+
     async getEntryPointActivity(network, chainId, address, first, skip) {
         let total = 0;
         if (skip === 0) {
@@ -538,6 +588,17 @@ class EntryPointManager {
         let result = await ConnectionManager.getInstance().querySql(sql, values);
         result = result?.map(uo => {return { ...uo, success: uo.success !== "0", network: network || getNetwork(uo.chain_id) };});
         return { total, userOps: result || [] };
+    }
+
+    async getBundlerNetworks(address) {
+        const sql = `
+                                 SELECT DISTINCT TXS.chain_id AS chain_id 
+                                 FROM ENTRY_POINT_TXS AS TXS 
+                                 RIGHT JOIN ENTRY_POINT_LOGS AS LOGS ON TXS.chain_id = LOGS.chain_id AND TXS.hash = LOGS.transactionHash 
+                                 WHERE TXS.tx_from=?
+                            `;
+        const result = await ConnectionManager.getInstance().querySql(sql, [address]);
+        return result?.map(item => getNetwork(item.chain_id)) || [];
     }
 
     async getBundlerActivity(network, chainId, address, first, skip) {
@@ -588,6 +649,11 @@ class EntryPointManager {
         return { total, userOps: result || [] };
     }
 
+    async getPaymasterNetworks(address) {
+        const sql = `SELECT DISTINCT chain_id FROM ENTRY_POINT_LOGS WHERE paymaster=?`;
+        const result = await ConnectionManager.getInstance().querySql(sql, [address]);
+        return result?.map(item => getNetwork(item.chain_id)) || [];
+    }
 
     async getPaymasterActivity(network, chainId, address, first, skip) {
         let total = 0;
@@ -628,6 +694,12 @@ class EntryPointManager {
         let result = await ConnectionManager.getInstance().querySql(sql, values);
         result = result?.map(uo => {return { ...uo, success: uo.success !== "0", network: network || getNetwork(uo.chain_id) };});
         return { total, userOps: result || [] };
+    }
+
+    async getSenderNetworks(address) {
+        const sql = `SELECT DISTINCT chain_id FROM ENTRY_POINT_LOGS WHERE sender=?`;
+        const result = await ConnectionManager.getInstance().querySql(sql, [address]);
+        return result?.map(item => getNetwork(item.chain_id)) || [];
     }
 
     async getSenderActivity(network, chainId, address, first, skip) {

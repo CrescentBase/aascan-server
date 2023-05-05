@@ -1,4 +1,5 @@
 
+const TYPE_UNKNOWN = "Unknown";
 const TYPE_ENTRYPOINT = "EntryPoint";
 const TYPE_PAYMASTER = "Paymaster";
 const TYPE_BUNDLER = "Bundler";
@@ -16,6 +17,7 @@ const TYPE_SENDER = "Sender";
 
 
 export {
+    TYPE_UNKNOWN,
     TYPE_ENTRYPOINT,
     TYPE_PAYMASTER,
     TYPE_BUNDLER,
